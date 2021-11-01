@@ -6,9 +6,10 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.UUID;
 import java.util.concurrent.locks.*;
 
-public class Database {
+public class SingletonDatabase {
 
     private static final String FILENAME = "database.json";
     private static final Path PATH = Server.RESOURCES_PATH.resolve(FILENAME);
@@ -53,18 +54,30 @@ public class Database {
         }
     }
 
-    public void addOrUpdate(JsonElement key, JsonElement value) {
+    public void createCollection(String name) throws IOException {
+        var collectionName = name + ".json";
+        var path = Server.RESOURCES_PATH.resolve(collectionName);
+        if(!Files.exists(path)){
+            Files.createFile(path);
+            db = new JsonObject();
+            write(path);
+        }
+    }
+
+    public void removeCollection(String name) throws IOException {
+        var path = Server.RESOURCES_PATH.resolve(name + ".json");
+        Files.deleteIfExists(path);
+    }
+
+    public void add(JsonElement key, JsonElement value) {
         try {
             writeLock.lock();
+            var id = UUID.randomUUID().toString();
 
             if (key.isJsonPrimitive()) {
-                db.add(key.getAsString(), value);
-            } else if (key.isJsonArray()) {
-                var keys = key.getAsJsonArray();
-                var newest = keys.remove(keys.size() - 1).getAsString();
-
-                var toUpdate = getElement(keys, true);
-                toUpdate.getAsJsonObject().add(newest, value);
+                var toInsert = new JsonObject();
+                toInsert.add(key.getAsString(), value);
+                db.add(id, toInsert);
             } else {
                 throw new IllegalArgumentException("Invalid");
             }
@@ -73,6 +86,22 @@ public class Database {
         } finally {
             writeLock.unlock();
         }
+    }
+
+    public void update(JsonElement key, JsonElement value){
+        if(key.isJsonPrimitive()){
+            db.add(key.getAsString(), value);
+        }
+        else if (key.isJsonArray()){
+            var keys = key.getAsJsonArray();
+            var newest = keys.remove(keys.size() - 1).getAsString();
+
+            var toUpdate = getElement(keys, true);
+            toUpdate.getAsJsonObject().add(newest, value);
+        }
+
+        write();
+
     }
 
     public void removeElement(JsonElement key){
@@ -164,6 +193,14 @@ public class Database {
 
     private void write() {
         try (var writer = new FileWriter(PATH.toString())) {
+            writer.write(prettyPrint(db));
+        } catch (IOException exception) {
+            exception.printStackTrace();
+        }
+    }
+
+    private void write(Path path) {
+        try (var writer = new FileWriter(path.toString())) {
             writer.write(prettyPrint(db));
         } catch (IOException exception) {
             exception.printStackTrace();
