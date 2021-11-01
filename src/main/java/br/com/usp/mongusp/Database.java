@@ -7,40 +7,22 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.UUID;
-import java.util.concurrent.locks.*;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-public class SingletonDatabase {
+public class Database {
 
-    private static final String FILENAME = "database.json";
-    private static final Path PATH = Server.RESOURCES_PATH.resolve(FILENAME);
-
+    private final Path PATH;
     private final Lock readLock;
     private final Lock writeLock;
 
     private JsonObject db;
 
-    private static volatile SingletonDatabase instance;
-
-    private SingletonDatabase() {
+    public Database(String collection) {
         var lock = new ReentrantReadWriteLock();
         readLock = lock.readLock();
         writeLock = lock.writeLock();
-    }
-
-    public static SingletonDatabase getInstance(){
-        SingletonDatabase result = instance;
-
-        if( result != null ){
-            return result;
-        }
-
-        synchronized (Database.class) {
-            if( instance == null ) {
-                instance = new SingletonDatabase();
-            }
-
-            return instance;
-        }
+        PATH = Server.RESOURCES_PATH.resolve(collection + ".json");
     }
 
     public void init() throws IOException {
@@ -48,10 +30,15 @@ public class SingletonDatabase {
             var collection = new String(Files.readAllBytes(PATH));
             db = new Gson().fromJson(collection, JsonObject.class);
         } else {
+            System.out.println("Criando arquivo...");
             Files.createFile(PATH);
             db = new JsonObject();
             write();
         }
+    }
+
+    public JsonObject getAll(){
+        return db;
     }
 
     public void createCollection(String name) throws IOException {
@@ -66,20 +53,67 @@ public class SingletonDatabase {
 
     public void removeCollection(String name) throws IOException {
         var path = Server.RESOURCES_PATH.resolve(name + ".json");
+        db = new JsonObject();
         Files.deleteIfExists(path);
     }
 
-    public void add(JsonElement key, JsonElement value) {
+    /**
+     * O método adiciona faz as seguintes operações:
+     * - Faz um lock de escrita no arquivo que representa a coleção
+     * - Gera um id alfanumérico que representará aquele elemento na coleção
+     * - Adiciona em memória o novo elemento
+     * - Faz a escrita no arquivo
+     * - Libera o lock de escrita
+     */
+    public void add(JsonElement value) {
         try {
             writeLock.lock();
             var id = UUID.randomUUID().toString();
+            db.add(id, value);
+            write();
+        } finally {
+            writeLock.unlock();
+        }
+    }
 
-            if (key.isJsonPrimitive()) {
-                var toInsert = new JsonObject();
-                toInsert.add(key.getAsString(), value);
-                db.add(id, toInsert);
-            } else {
-                throw new IllegalArgumentException("Invalid");
+    /*
+        O método de atualização recebe dois valores,
+        o conjunto de chave que deseja inserir, e o novo valor,
+        novamente iremos
+     */
+
+    public void update(JsonElement key, JsonElement value){
+        try {
+            writeLock.lock();
+
+            /*
+                Um elemento "json primitivo" é qualquer dado que não seja um objeto ({})
+                ou um vetor ([]), neste caso o que será o "id", e iremos fazer um update
+                completo no elemento da coleção
+             */
+            if(key.isJsonPrimitive()){
+                db.add(key.getAsString(), value);
+            }
+            /*
+                Neste caso o que foi passado foi um vetor que representa o caminho a ser navegado,
+                por exemplo:
+                    [ "id", "disciplinas", "matematica", "nota" ]
+                Com base nisso o que queremos fazer é um update apenas dentro do campo nota,
+                então o que iremos fazer é navegar até a posição (n-1) do json, neste caso até
+                "matemática", e teremos um nó que representará:
+
+                "matematica": {
+                    "nota": 8
+                }
+
+                E desta forma o que podemos é atualizar o campo
+             */
+            else if (key.isJsonArray()){
+                var keys = key.getAsJsonArray();
+                var newest = keys.remove(keys.size() - 1).getAsString();
+
+                var toUpdate = getElement(keys, true);
+                toUpdate.getAsJsonObject().add(newest, value);
             }
 
             write();
@@ -88,21 +122,16 @@ public class SingletonDatabase {
         }
     }
 
-    public void update(JsonElement key, JsonElement value){
-        if(key.isJsonPrimitive()){
-            db.add(key.getAsString(), value);
-        }
-        else if (key.isJsonArray()){
-            var keys = key.getAsJsonArray();
-            var newest = keys.remove(keys.size() - 1).getAsString();
+    /*
+        O método de deletar utilizar a mesma lógica do update, primeiro verificamos se é uma chave
+        primitiva (no caso o usuário quer deletar o elemento completamente) e se ele existe, para que a operaçõa
+        seja concluida corretamente.
 
-            var toUpdate = getElement(keys, true);
-            toUpdate.getAsJsonObject().add(newest, value);
-        }
+        Caso o usuário passe um JSON Array, indicará que queremos deletar apenas uma propriedade especifica
+        daquele elemento, e novamente iremos navegar até a posição (n-1) e fazer a remoção daquela propriedade
 
-        write();
-
-    }
+        Por fim iremos escrever no arquivo e liberar o lock
+     */
 
     public void removeElement(JsonElement key){
         try {
@@ -113,7 +142,6 @@ public class SingletonDatabase {
 
             else if (key.isJsonArray()) {
                 var keys = key.getAsJsonArray();
-                System.out.println(keys);
                 var keyToBeRemoved = keys.remove(keys.size() - 1).getAsString();
 
                 var object = getElement(keys, false);
@@ -125,17 +153,20 @@ public class SingletonDatabase {
             }
             write();
         }
-        catch (Exception exception){
-            exception.printStackTrace();
-        }
         finally {
             writeLock.unlock();
         }
     }
 
+    /*
+        O método de busca irá verificar se temos um dado primitivo (id) e queremos buscar o objeto por completo
+        ou se teremos também um vetor e propriedades, indicando que queremos trazer apenas um campo especifico
+        do elemento, iremos verificar se existe aquela chave, caso exista iremos retornar para o usuário
+
+        Novamente antes de começar as operações em disco fazemos o "lock" e após finalizar o "unlock" das operações
+     */
     public JsonElement get(JsonElement key){
         try {
-
             var isPrimitive = key.isJsonPrimitive();
             var parsedKey = isPrimitive ? key.getAsString() : key.getAsJsonArray();
             readLock.lock();
@@ -150,15 +181,21 @@ public class SingletonDatabase {
                 throw new IllegalArgumentException("A chave precisa ser uma propriedade ou lista de propriedades");
             }
         }
-        catch (Exception exception){
-            exception.printStackTrace();
-            return null;
-        }
         finally {
             readLock.unlock();
         }
     }
 
+    /*
+        O método "getElement" faz a navegação pelo JSON quando nos é passado
+         um vetor de propriedades, utilizando a biblioteca do GSON,
+        dado que um json tem uma estrutura de árvore o que fazemos é verificar
+        se existe aquela propriedade, caso exista podemos ir para esse nó, até que chegue
+        no ponto desejado.
+
+        Dado que usamos essa função no "update", "add" e "delete", passamos um
+        parâmetro que específica se podemos criar uma chave que é inexistente
+     */
     private JsonElement getElement(JsonArray keys, boolean shouldCreateKey) {
         JsonElement node = db.getAsJsonObject();
 
@@ -191,6 +228,10 @@ public class SingletonDatabase {
         return new GsonBuilder().setPrettyPrinting().create().toJson(collection);
     }
 
+    /**
+     * Método que abre o arquivo específico da coleção e escreve no arquivo
+     * o objeto atual da memória
+     */
     private void write() {
         try (var writer = new FileWriter(PATH.toString())) {
             writer.write(prettyPrint(db));

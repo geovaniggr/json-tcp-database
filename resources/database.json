@@ -34,5 +34,13 @@
   "69236a67-8006-41d6-80c1-e32a3f7a6f46": {
     "nome": "Luciano",
     "idade": 31
+  },
+  "adab4948-9a86-4b53-af79-cab69d4d4197": {
+    "nome": "Gruntar",
+    "profissao": "Narrador"
+  },
+  "849c3b9f-d858-4eaa-bc61-173a78e372d7": {
+    "nome": "Lulu",
+    "tipo": "support"
   }
 }

@@ -4,11 +4,9 @@ import com.google.gson.JsonElement;
 import com.google.gson.annotations.Expose;
 
 public class Response {
-    public static final String STATUS_OK = "OK";
-    public static final String STATUS_ERROR = "ERROR";
 
     @Expose
-    private String response;
+    private ResponseStatus response;
 
     @Expose
     private String reason;
@@ -16,11 +14,11 @@ public class Response {
     @Expose
     private JsonElement value;
 
-    public String getResponse() {
+    public ResponseStatus getResponse() {
         return response;
     }
 
-    public void setResponse(String response) {
+    public void setResponse(ResponseStatus response) {
         this.response = response;
     }
 

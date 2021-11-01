@@ -1,9 +1,38 @@
 {
-  "disciplinas": {
-    "matematica": {
-      "nota": "9.75"
-    },
-    "geografia": {}
+  "a9fbc8a3-047a-46be-99d0-12ba91f4f4af": "{ idade: 22 }",
+  "c27c744c-756d-48c6-a552-25ca49bdedd5": {
+    "nome": "Bruno Henrique"
   },
-  "idade": 25
+  "5bbb861c-994c-4e94-a03d-7596f1457577": {
+    "anything": "{ nome: \"geovani\", idade: 25 } "
+  },
+  "b96ac105-2cf0-4631-8cbf-bdfbecef073a": {
+    "nenhum": {
+      "nome": "geovani",
+      "idade": 25
+    }
+  },
+  "ad64d168-4b26-44a8-8585-41eb5a3b6692": {
+    "nome": "Rogerio Ceni",
+    "idade": 50
+  },
+  "991291f3-d928-4c39-accc-8e5e1d01c5c2": {
+    "nome": "Lugano",
+    "idade": 42
+  },
+  "7b66e247-edfb-46ce-8b62-1e65ed23de5f": {
+    "nome": "Gesley Elois",
+    "idade": 40
+  },
+  "edba82ac-c560-4129-a2e3-60c9f9335148": {
+    "nome": {
+      "primeiro_nome": "Rogerio",
+      "segundo_nome": "Ceni"
+    },
+    "idade": "50"
+  },
+  "69236a67-8006-41d6-80c1-e32a3f7a6f46": {
+    "nome": "Luciano",
+    "idade": 31
+  }
 }

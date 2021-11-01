@@ -6,8 +6,13 @@ import com.google.gson.annotations.Expose;
 public class JSONRequest {
     @Expose
     private String type;
+
     @Expose
     private JsonElement key;
+
+    @Expose
+    private String collection;
+
     @Expose
     private JsonElement value;
 
@@ -17,6 +22,14 @@ public class JSONRequest {
 
     public void setType(String type) {
         this.type = type;
+    }
+
+    public String getCollection() {
+        return collection;
+    }
+
+    public void setCollection(String collection) {
+        this.collection = collection;
     }
 
     public JsonElement getKey() {
